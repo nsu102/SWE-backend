@@ -76,6 +76,27 @@ work/.venv/bin/python -m src.jobs.index_catalog \
 
 `--limit`을 제거하면 선택 완료 상품 전체를 upsert합니다. EC2에서는 access key를 파일에 넣지 말고 S3 읽기 권한이 있는 IAM Role을 인스턴스에 연결하는 방식을 권장합니다.
 
+### 무신사 900개 시드
+
+로컬 DB의 기존 무신사 상품을 포함해 총 900개가 되도록 채웁니다. 크롤러 저장소와 S3 이미지를 자동으로 찾아 사용하며, 이미 DB에 있는 상품은 임베딩을 다시 계산하지 않습니다. 중간에 중단되어도 같은 명령을 다시 실행하면 남은 상품부터 이어집니다.
+
+```bash
+# 다운로드·임베딩 없이 대상 개수만 확인
+make seed-musinsa-plan
+
+# DB 시작 → S3 이미지 로딩 → 임베딩 → pgvector 적재
+make seed-musinsa
+```
+
+크롤러 저장소를 자동으로 찾지 못하면 경로를 지정합니다. 목표 개수와 배치 크기도 변경할 수 있습니다.
+
+```bash
+CRAWLER_ROOT=/absolute/path/to/SWE-crawl make seed-musinsa
+SEED_LIMIT=900 SEED_BATCH_SIZE=16 make seed-musinsa
+```
+
+실행 계획은 `available`, `existing`, `to_index`, `target` 순서로 출력됩니다. 목표 900개가 이미 적재되어 있으면 아무 작업도 하지 않습니다.
+
 ## EC2/RDS 배포
 
 `deploy/backend/env.example`을 `deploy/backend/.env`로 복사하고 RDS 주소, 프런트엔드 도메인, S3 버킷을 입력합니다. RDS는 PostgreSQL 16과 pgvector 확장을 사용할 수 있어야 합니다.

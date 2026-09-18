@@ -21,7 +21,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--products", type=Path)
     parser.add_argument("--selections", type=Path)
     parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument("--limit", type=int)
+    size = parser.add_mutually_exclusive_group()
+    size.add_argument("--limit", type=int, help="maximum new records to index")
+    size.add_argument(
+        "--target-count", type=int,
+        help="stop when this platform has the requested number of indexed products",
+    )
+    parser.add_argument(
+        "--skip-existing", action="store_true",
+        help="do not recompute embeddings for goods already in the database",
+    )
+    parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
 
@@ -67,20 +77,61 @@ def load_image(record: dict, default_bucket: str) -> Image.Image:
         return image.convert("RGB")
 
 
+def existing_goods_numbers(platform: str) -> set[str]:
+    with connect_db() as connection:
+        rows = connection.execute(
+            "SELECT goods_no FROM products WHERE platform = %s", (platform,)
+        ).fetchall()
+    return {str(row["goods_no"]) for row in rows}
+
+
+def plan_records(
+    records: list[dict],
+    existing: set[str],
+    *,
+    limit: int | None,
+    target_count: int | None,
+    skip_existing: bool,
+) -> list[dict]:
+    unseen = [
+        record for record in records
+        if str(record["product"]["goods_no"]) not in existing
+    ]
+    if target_count is not None:
+        return unseen[:max(0, target_count - len(existing))]
+    candidates = unseen if skip_existing else records
+    return candidates[:limit] if limit is not None else candidates
+
+
 def main() -> int:
     args = parse_args()
     if args.batch_size < 1:
         raise SystemExit("--batch-size must be >= 1")
+    if args.limit is not None and args.limit < 1:
+        raise SystemExit("--limit must be >= 1")
+    if args.target_count is not None and args.target_count < 1:
+        raise SystemExit("--target-count must be >= 1")
     products_path, selections_path = defaults(args)
-    records = load_records(products_path, selections_path, args.platform)
-    if args.limit is not None:
-        records = records[:args.limit]
-    if not records:
-        print("No selected images to index.")
-        return 0
-
+    available_records = load_records(products_path, selections_path, args.platform)
     settings = get_settings()
     initialize_database()
+    existing = existing_goods_numbers(args.platform)
+    records = plan_records(
+        available_records,
+        existing,
+        limit=args.limit,
+        target_count=args.target_count,
+        skip_existing=args.skip_existing,
+    )
+    target = args.target_count if args.target_count is not None else "not set"
+    print(
+        f"Catalog plan: available={len(available_records)}, existing={len(existing)}, "
+        f"to_index={len(records)}, target={target}",
+        flush=True,
+    )
+    if args.dry_run or not records:
+        return 0
+
     models = get_models()
     indexed = 0
     for start in range(0, len(records), args.batch_size):

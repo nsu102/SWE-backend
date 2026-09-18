@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-logs db-shell db-reset db-status
+.PHONY: db-up db-down db-logs db-shell db-reset db-status seed-musinsa seed-musinsa-plan
 
 db-up:
 	docker compose up -d --wait postgres
@@ -19,3 +19,10 @@ db-status:
 db-reset:
 	docker compose down -v
 	docker compose up -d --wait postgres
+
+# 목표 개수는 기존 DB 행을 포함합니다. 재실행하면 이미 적재한 상품을 건너뜁니다.
+seed-musinsa: db-up
+	SEED_LIMIT=$${SEED_LIMIT:-900} bash scripts/seed_musinsa.sh
+
+seed-musinsa-plan: db-up
+	SEED_LIMIT=$${SEED_LIMIT:-900} SEED_DRY_RUN=1 bash scripts/seed_musinsa.sh
