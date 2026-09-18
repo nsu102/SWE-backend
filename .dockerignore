@@ -1,0 +1,10 @@
+.git
+.env
+**/.env
+work
+data
+storage
+logs
+outputs
+**/__pycache__
+deploy/backend/certs
