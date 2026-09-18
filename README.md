@@ -21,8 +21,31 @@ python3 -m venv work/.venv
 work/.venv/bin/pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 work/.venv/bin/pip install -r requirements-backend.txt -r requirements-ml.txt -r requirements-aws.txt
 cp .env.example .env
-docker compose up -d postgres
+make db-up
 ```
+
+로컬 DB는 `pgvector/pgvector:pg16` 컨테이너로 실행되며 `127.0.0.1:5432`에서만 접근할 수 있습니다. 최초 볼륨 생성 시 `src/backend/schema.sql`이 자동 실행되어 `vector` 확장, 상품·검색 이력 테이블과 HNSW 인덱스를 만듭니다.
+
+```bash
+make db-status # 상태 확인
+make db-shell  # psql 접속
+make db-logs   # DB 로그
+make db-down   # 컨테이너 중지, 데이터 볼륨 유지
+make db-reset  # 데이터 볼륨 삭제 후 완전 초기화
+```
+
+기본 로컬 접속 정보는 다음과 같습니다.
+
+```text
+host: 127.0.0.1
+port: 5432
+database: fashion
+user: fashion
+password: fashion
+DATABASE_URL: postgresql://fashion:fashion@localhost:5432/fashion
+```
+
+포트나 계정을 바꾸려면 `.env`의 `POSTGRES_*`와 `DATABASE_URL`을 함께 변경해야 합니다. 이 값은 로컬 개발 전용이며 운영 DB 비밀번호로 재사용하면 안 됩니다.
 
 `.env`를 현재 셸에 적용한 뒤 API를 실행합니다.
 
