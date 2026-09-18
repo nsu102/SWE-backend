@@ -12,6 +12,7 @@ services:
     volumes:
       - fashion_postgres_data:/var/lib/postgresql/data
       - ./src/backend/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+      - ./seed/002-musinsa-900.sql.gz:/docker-entrypoint-initdb.d/002-musinsa-900.sql.gz:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 3s

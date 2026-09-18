@@ -24,7 +24,12 @@ cp .env.example .env
 make db-up
 ```
 
-로컬 DB는 `pgvector/pgvector:pg16` 컨테이너로 실행되며 `127.0.0.1:5432`에서만 접근할 수 있습니다. 최초 볼륨 생성 시 `src/backend/schema.sql`이 자동 실행되어 `vector` 확장, 상품·검색 이력 테이블과 HNSW 인덱스를 만듭니다.
+로컬 DB는 `pgvector/pgvector:pg16` 컨테이너로 실행되며 `127.0.0.1:5432`에서만 접근할 수 있습니다. 최초 볼륨 생성 시 아래 순서로 자동 초기화됩니다.
+
+1. `src/backend/schema.sql`: `vector` 확장, 상품·검색 이력 테이블, HNSW 인덱스 생성
+2. `seed/002-musinsa-900.sql.gz`: 무신사 상품 900개와 FashionCLIP 임베딩 적재
+
+따라서 GitHub에서 이 저장소만 clone한 새 환경에서는 `make db-up`만 실행해도 검색 가능한 900개가 DB에 들어갑니다. 압축 시드에는 상품 메타데이터, S3 object key, 512차원 임베딩만 있으며 이미지와 AWS 인증정보는 포함되지 않습니다.
 
 ```bash
 make db-status # 상태 확인
@@ -33,6 +38,8 @@ make db-logs   # DB 로그
 make db-down   # 컨테이너 중지, 데이터 볼륨 유지
 make db-reset  # 데이터 볼륨 삭제 후 완전 초기화
 ```
+
+Docker 초기화 스크립트는 빈 데이터 볼륨에서만 실행됩니다. 기존 볼륨에 GitHub 시드를 다시 적용하려면 `make db-reset`을 사용해야 하며, 이 명령은 기존 로컬 DB 데이터를 모두 삭제합니다.
 
 기본 로컬 접속 정보는 다음과 같습니다.
 

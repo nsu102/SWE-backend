@@ -4,6 +4,7 @@
 work
 data
 storage
+seed
 logs
 outputs
 **/__pycache__
