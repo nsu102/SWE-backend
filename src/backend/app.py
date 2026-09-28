@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import io
 import time
 import uuid
@@ -14,7 +15,7 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
 
 from src.backend.config import get_settings
-from src.backend.db import connect_db, count_products, initialize_database, search_products
+from src.backend.db import connect_db, count_products, initialize_database, search_products_multi
 from src.backend.ml import get_models
 from src.backend.storage import image_url
 
@@ -34,6 +35,8 @@ class SearchResponse(BaseModel):
     query_id: uuid.UUID
     used_top_mask: bool
     top_ratio: float
+    box_preview: str
+    masked_preview: str | None
     elapsed_ms: int
     results: list[SearchResult]
 
@@ -71,7 +74,22 @@ def live() -> dict[str, str]:
 def infer(source: Image.Image):
     models = get_models()
     prepared = models.prepare_query(source)
-    return prepared, models.embed([prepared.image])[0].tolist()
+    embeddings = models.embed(list(prepared.images)).tolist()
+    return prepared, embeddings
+
+
+def preview_data_url(image: Image.Image) -> str:
+    preview = image.copy()
+    preview.thumbnail((480, 480))
+    output = io.BytesIO()
+    preview.convert("RGB").save(output, format="JPEG", quality=88, optimize=True)
+    encoded = base64.b64encode(output.getvalue()).decode("ascii")
+    return f"data:image/jpeg;base64,{encoded}"
+
+
+@app.get("/", include_in_schema=False)
+def web_test():
+    return FileResponse(Path(__file__).with_name("static") / "index.html")
 
 
 @app.post("/api/search", response_model=SearchResponse)
@@ -93,8 +111,8 @@ async def search(
     except (UnidentifiedImageError, OSError) as exc:
         raise HTTPException(status_code=400, detail="invalid image") from exc
 
-    prepared, embedding = await run_in_threadpool(infer, source)
-    rows = await run_in_threadpool(search_products, embedding, limit, platform)
+    prepared, embeddings = await run_in_threadpool(infer, source)
+    rows = await run_in_threadpool(search_products_multi, embeddings, limit, platform)
     query_id = uuid.uuid4()
     elapsed_ms = round((time.perf_counter() - started) * 1000)
 
@@ -111,7 +129,12 @@ async def search(
     ) for row in rows]
     return SearchResponse(
         query_id=query_id, used_top_mask=prepared.used_top_mask,
-        top_ratio=prepared.top_ratio, elapsed_ms=elapsed_ms, results=results,
+        top_ratio=prepared.top_ratio,
+        box_preview=preview_data_url(prepared.box_image),
+        masked_preview=(
+            preview_data_url(prepared.masked_image) if prepared.masked_image else None
+        ),
+        elapsed_ms=elapsed_ms, results=results,
     )
 
 

@@ -137,7 +137,13 @@ def main() -> int:
     for start in range(0, len(records), args.batch_size):
         batch = records[start:start + args.batch_size]
         images = [load_image(record, settings.s3_bucket) for record in batch]
-        embeddings = models.embed(images)
+        # Match the query pipeline: crop to the garment so catalog embeddings are
+        # not dominated by model pose / background. Use the box (tight crop) view;
+        # falls back to the full image when no top is detected.
+        # ponytail: single box view to fit the one-vector schema. Store box+masked
+        # as multi-vector if recall needs it (query already embeds both views).
+        prepared = [models.prepare_query(image) for image in images]
+        embeddings = models.embed([view.box_image for view in prepared])
         with connect_db() as connection:
             for record, embedding in zip(batch, embeddings):
                 product = record["product"]

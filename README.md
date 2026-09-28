@@ -64,6 +64,7 @@ work/.venv/bin/uvicorn src.backend.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 - API 문서: `http://127.0.0.1:8000/docs`
+- 웹 검색 테스트: `http://127.0.0.1:8000/`
 - 생존 확인: `GET /health/live`
 - DB 포함 상태 확인: `GET /health`
 - 이미지 검색: `POST /api/search?limit=20&platform=musinsa`

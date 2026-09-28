@@ -45,6 +45,31 @@ def search_products(
         return list(connection.execute(query, params).fetchall())
 
 
+def merge_search_results(
+    result_sets: list[list[dict[str, Any]]], limit: int
+) -> list[dict[str, Any]]:
+    merged: dict[tuple[str, str], dict[str, Any]] = {}
+    for rows in result_sets:
+        for row in rows:
+            key = (str(row["platform"]), str(row["goods_no"]))
+            if key not in merged or float(row["similarity"]) > float(merged[key]["similarity"]):
+                merged[key] = row
+    return sorted(
+        merged.values(), key=lambda row: float(row["similarity"]), reverse=True
+    )[:limit]
+
+
+def search_products_multi(
+    embeddings: list[list[float]], limit: int, platform: str | None = None
+) -> list[dict[str, Any]]:
+    candidate_limit = min(200, max(50, limit * 4))
+    result_sets = [
+        search_products(embedding, candidate_limit, platform)
+        for embedding in embeddings
+    ]
+    return merge_search_results(result_sets, limit)
+
+
 def count_products() -> int:
     with connect_db() as connection:
         row = connection.execute("SELECT count(*) AS count FROM products").fetchone()
